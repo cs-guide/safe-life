@@ -150,30 +150,18 @@ function AffCard({ p }) {
 const ttStyle = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textPrimary };
 
 // ── 広告セクション（各ページ下部）──────────────────────────
-// 楽天ウィジェットを独立コンポーネント化（ref が確実に mount 後に使われるようにする）
+// 楽天ウィジェットをiframeで実装（SPA内でのスクリプト動的注入の問題を回避）
 function RakutenAd() {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.innerHTML = "";
-    window.rakuten_design = "slide";
-    window.rakuten_affiliateId = "0f720b8c.0ab39c44.0f720b8d.56ca2f62";
-    window.rakuten_items = "ctsmatch";
-    window.rakuten_genreId = "0";
-    window.rakuten_size = "468x160";
-    window.rakuten_target = "_blank";
-    window.rakuten_theme = "gray";
-    window.rakuten_border = "off";
-    window.rakuten_auto_mode = "on";
-    window.rakuten_genre_title = "off";
-    window.rakuten_recommend = "on";
-    window.rakuten_ts = String(Date.now());
-    const s = document.createElement("script");
-    s.src = "https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106";
-    s.async = true;
-    ref.current.appendChild(s);
-  }, []);
-  return <div ref={ref} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />;
+  const ts = useRef(Date.now()).current;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;overflow:hidden;background:transparent"><script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="0f720b8c.0ab39c44.0f720b8d.56ca2f62";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="${ts}";<\/script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"><\/script></body></html>`;
+  return (
+    <iframe
+      srcDoc={html}
+      style={{ width: "100%", maxWidth: 430, height: 170, border: "none", display: "block" }}
+      title="楽天広告"
+      sandbox="allow-scripts allow-popups allow-same-origin"
+    />
+  );
 }
 
 function AdSection({ isHome }) {
@@ -320,30 +308,6 @@ function CameraScanner({ onScan, C, btnSt }) {
   );
 }
 
-function RakutenWidget() {
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.innerHTML = "";
-    window.rakuten_design = "slide";
-    window.rakuten_affiliateId = "0f720b8c.0ab39c44.0f720b8d.56ca2f62";
-    window.rakuten_items = "ctsmatch";
-    window.rakuten_genreId = "0";
-    window.rakuten_size = "468x160";
-    window.rakuten_target = "_blank";
-    window.rakuten_theme = "gray";
-    window.rakuten_border = "off";
-    window.rakuten_auto_mode = "on";
-    window.rakuten_genre_title = "off";
-    window.rakuten_recommend = "on";
-    window.rakuten_ts = String(Date.now());
-    const s = document.createElement("script");
-    s.src = "https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106";
-    s.async = true;
-    ref.current.appendChild(s);
-  }, []);
-  return <div ref={ref} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />;
-}
 
 // ── App ────────────────────────────────────────────────────
 export default function App() {
@@ -361,10 +325,13 @@ export default function App() {
   };
   const [allergens, setAllergens] = useState(INITIAL_ALLERGENS);
   const [newAllergen, setNewAllergen] = useState("");
-  const [diary, setDiary] = useState(DIARY_INIT);
+  const [diary, setDiary] = useState(() => {
+    try { const s = localStorage.getItem("safelife_diary"); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
   const [form, setForm] = useState({ symptoms: [], exposures: [], severity: 5, note: "", date: new Date().toISOString().slice(0, 16), exposureTime: new Date().toISOString().slice(0, 16), customExposure: "" });
   const [scanCode, setScanCode] = useState("");
   const [scanResult, setScanResult] = useState(null);
+  const [scanLoading, setScanLoading] = useState(false);
   const [shopFilter, setShopFilter] = useState("全て");
   const [selectedShop, setSelectedShop] = useState(null);
   const [showShopForm, setShowShopForm] = useState(false);
@@ -412,6 +379,7 @@ export default function App() {
     setShopsLoading(false);
   };
 
+  useEffect(() => { try { localStorage.setItem("safelife_diary", JSON.stringify(diary)); } catch {} }, [diary]);
   useState(() => { fetchShops(); fetchPosts(); }, []);
   const [toast, setToast] = useState(null);
   const [aiResult, setAiResult] = useState(null);
@@ -464,11 +432,44 @@ export default function App() {
     showToast("記録しました");
   };
 
-  const doScan = (code) => {
+  const doScan = async (code) => {
+    if (!code.trim()) return;
+    // ローカルDBを先に確認
     const p = PRODUCTS[code];
-    if (!p) { setScanResult({ error: true, code }); return; }
-    const hits = p.ingredients.filter(ing => allergens.some(a => ing.includes(a) || a.includes(ing.split("（")[0])));
-    setScanResult({ ...p, hits });
+    if (p) {
+      const hits = p.ingredients.filter(ing => allergens.some(a => ing.includes(a) || a.includes(ing.split("（")[0])));
+      setScanResult({ ...p, hits });
+      return;
+    }
+    // Open Food Facts API で検索
+    setScanLoading(true);
+    setScanResult(null);
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code.trim()}.json`);
+      const data = await res.json();
+      if (data.status === 1) {
+        const prod = data.product;
+        const rawText = prod.ingredients_text_ja || prod.ingredients_text || "";
+        const ingredients = rawText
+          .replace(/\(.*?\)/g, "")
+          .split(/[,、，\n]/)
+          .map(s => s.replace(/^\s*[-・]\s*/, "").trim())
+          .filter(Boolean);
+        const hits = ingredients.filter(ing => allergens.some(a => ing.includes(a) || a.includes(ing.split("（")[0])));
+        setScanResult({
+          name: prod.product_name_ja || prod.product_name || code,
+          ingredients: ingredients.length > 0 ? ingredients : ["成分情報なし"],
+          hits,
+          safe: hits.length === 0,
+          source: "openfoodfacts",
+        });
+      } else {
+        setScanResult({ error: true, code });
+      }
+    } catch {
+      setScanResult({ error: true, code });
+    }
+    setScanLoading(false);
   };
 
   const graphData = [...diary].sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ date: d.date.slice(5, 10), severity: d.severity, exposures: d.exposures.length, symptoms: d.symptoms.length }));
@@ -1199,6 +1200,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
             </Card>
 
+            {scanLoading && <Card><p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: 0 }}>製品情報を検索中...</p></Card>}
             {scanResult && !scanResult.error && (
               <Card>
                 <div style={{ fontSize: 15, fontWeight: 600, color: C.textPrimary, marginBottom: 12 }}>{scanResult.name}</div>
@@ -1210,6 +1212,9 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   <div style={{ background: C.dangerDim, border: `1px solid ${C.danger}20`, borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
                     {scanResult.hits.map(h => <div key={h} style={{ fontSize: 12, color: C.danger, marginBottom: 2 }}>· {h}</div>)}
                   </div>
+                )}
+                {scanResult.source === "openfoodfacts" && (
+                  <p style={{ fontSize: 10, color: C.textMuted, margin: "0 0 12px" }}>出典: Open Food Facts（成分情報が不完全な場合があります）</p>
                 )}
                 <SLabel>全成分</SLabel>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: scanResult.hits.length > 0 ? 20 : 0 }}>
@@ -1231,7 +1236,12 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 )}
               </Card>
             )}
-            {scanResult && scanResult.error && <Card><p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: 0 }}>「{scanResult.code}」は見つかりませんでした</p></Card>}
+            {scanResult && scanResult.error && (
+              <Card>
+                <p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: "0 0 8px" }}>「{scanResult.code}」の製品情報が見つかりませんでした</p>
+                <p style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: 0 }}>国内製品はデータベースに登録されていない場合があります</p>
+              </Card>
+            )}
 
             <Card>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
