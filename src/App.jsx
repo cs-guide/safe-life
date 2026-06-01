@@ -173,8 +173,8 @@ function AdSection({ isHome }) {
     rakutenRef.current.appendChild(s);
   }, []);
 
-  // タブ番号に応じて広告を1つだけ表示
-  const adIndex = isHome ? 0 : typeof isHome === "number" ? isHome % 3 : 1;
+  // タブ番号に応じて広告を1つだけ表示（isHomeは数値で渡す）
+  const adIndex = typeof isHome === "number" ? isHome % 4 : 0;
 
   return (
     <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
@@ -263,6 +263,7 @@ export default function App() {
   const [shopsLoading, setShopsLoading] = useState(false);
   const [shopsFromSheet, setShopsFromSheet] = useState(false);
   const [posts, setPosts] = useState(POSTS_FALLBACK);
+  const [showAllPosts, setShowAllPosts] = useState(false);
 
   // note・Threads の最新投稿を API Route から自動取得
   const fetchPosts = async () => {
@@ -501,8 +502,8 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   <BookOpen size={14} color={C.textSecondary} strokeWidth={1.5} />
                   <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textMuted, fontWeight: 600 }}>最新の投稿</span>
                 </div>
-                {posts.map((post, i) => (
-                  <a key={i} href={post.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none", paddingBottom: i < posts.length - 1 ? 12 : 0, marginBottom: i < posts.length - 1 ? 12 : 0, borderBottom: i < posts.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                {(showAllPosts ? posts : posts.slice(0, 5)).map((post, i, arr) => (
+                  <a key={i} href={post.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none", paddingBottom: i < arr.length - 1 ? 12 : 0, marginBottom: i < arr.length - 1 ? 12 : 0, borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: post.type === "note" ? "#e6faf7" : "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <post.Icon size={16} color={post.type === "note" ? "#41c9b4" : "#555"} strokeWidth={1.5} />
                     </div>
@@ -516,6 +517,12 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                     <ExternalLink size={13} color={C.textMuted} strokeWidth={1.5} style={{ flexShrink: 0 }} />
                   </a>
                 ))}
+                {posts.length > 5 && (
+                  <button onClick={() => setShowAllPosts(v => !v)} style={{ width: "100%", marginTop: 12, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px", fontSize: 12, color: C.textSecondary, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    {showAllPosts ? "閉じる" : `すべて見る（${posts.length}件）`}
+                    <ArrowRight size={12} color={C.textSecondary} strokeWidth={1.5} style={{ transform: showAllPosts ? "rotate(90deg)" : "none" }} />
+                  </button>
+                )}
               </Card>
 
               {/* 今日のおすすめ製品 */}
