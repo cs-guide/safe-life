@@ -453,6 +453,55 @@ export default function App() {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 2500); };
+
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify(diary, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `safelife-diary-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportCSV = () => {
+    const headers = ["日時", "曝露時間", "症状", "曝露したもの", "強度", "メモ"];
+    const rows = diary.map(d => [
+      d.date, d.exposureTime || "", d.symptoms.join("・"), d.exposures.join("・"), d.severity, d.note || ""
+    ]);
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `safelife-diary-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importJSON = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!Array.isArray(data)) throw new Error();
+        setDiary(prev => {
+          const existingIds = new Set(prev.map(d => d.id));
+          const newEntries = data.filter(d => !existingIds.has(d.id));
+          return [...prev, ...newEntries].sort((a, b) => b.date.localeCompare(a.date));
+        });
+        showToast(`${data.length}件をインポートしました`);
+      } catch {
+        showToast("インポートに失敗しました", false);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
   const toggleItem = (key, val) => setForm(p => ({ ...p, [key]: p[key].includes(val) ? p[key].filter(x => x !== val) : [...p[key], val] }));
 
   const saveSimple = (score) => {
@@ -532,7 +581,9 @@ export default function App() {
         }),
       });
       const data = await res.json();
-      if (data.error) {
+      if (data.error === "rate_limit") {
+        setScanResult({ error: true, message: data.message });
+      } else if (data.error) {
         setScanResult({ error: true });
       } else {
         setScanResult(data);
@@ -1379,8 +1430,12 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
 
             {scanResult && scanResult.error && (
               <Card>
-                <p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: "0 0 8px" }}>解析できませんでした</p>
-                <p style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: 0 }}>成分表がはっきり写るよう撮り直してみてください</p>
+                <p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: "0 0 8px" }}>
+                  {scanResult.message || "解析できませんでした"}
+                </p>
+                <p style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: 0 }}>
+                  {scanResult.message ? "" : "成分表がはっきり写るよう撮り直してみてください"}
+                </p>
               </Card>
             )}
 
@@ -1484,6 +1539,34 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
               <ExternalLink size={14} color={C.textMuted} strokeWidth={1.5} style={{ flexShrink: 0 }} />
             </a>
+
+            {/* データ管理 */}
+            <Card>
+              <SLabel>データのバックアップ</SLabel>
+              <div style={{ background: C.warnDim, border: `1px solid ${C.warn}25`, borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <Info size={13} color={C.warn} strokeWidth={1.5} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: 11, color: C.warn, margin: 0, lineHeight: 1.7 }}>
+                    SafariはiPhoneで7日間アプリを開かないとデータが消える場合があります。定期的にエクスポートしておくことをおすすめします。
+                  </p>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 14 }}>記録件数: <strong style={{ color: C.textPrimary }}>{diary.length}件</strong></div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <button onClick={exportJSON} style={{ flex: 1, background: C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "11px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  JSONで保存
+                </button>
+                <button onClick={exportCSV} style={{ flex: 1, background: "transparent", color: C.accent, border: `1px solid ${C.accent}`, borderRadius: 10, padding: "11px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  CSVで保存
+                </button>
+              </div>
+              <label style={{ display: "block", cursor: "pointer" }}>
+                <input type="file" accept=".json" onChange={importJSON} style={{ display: "none" }} />
+                <div style={{ textAlign: "center", padding: "11px", border: `1px dashed ${C.border}`, borderRadius: 10, fontSize: 12, color: C.textMuted }}>
+                  JSONファイルからインポート
+                </div>
+              </label>
+            </Card>
 
             <Card style={{ marginBottom: 0 }}>
               <SLabel>アプリについて</SLabel>
