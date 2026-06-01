@@ -215,41 +215,79 @@ function AdSection({ isHome }) {
   );
 }
 
-// ── カメラバーコードスキャナー ────────────────────────────────
+// ── カメラバーコードスキャナー（Safari/Chrome/Edge 対応）────────
 function CameraScanner({ onScan, C, btnSt }) {
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const [active, setActive] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const animRef = useRef(null);
+  const timerRef = useRef(null);
   const streamRef = useRef(null);
 
   const stop = () => {
+    clearInterval(timerRef.current);
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
-    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
     setActive(false);
   };
 
+  const loadZXing = () => new Promise((resolve, reject) => {
+    if (window.ZXing) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+
   const start = async () => {
     setError(null);
-    if (!navigator.mediaDevices?.getUserMedia) { setError("このブラウザはカメラに対応していません"); return; }
+    setLoading(true);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("カメラが使えません。番号を直接入力してください");
+      setLoading(false);
+      return;
+    }
     try {
+      await loadZXing();
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      setActive(true);
 
-      if (!("BarcodeDetector" in window)) { setError("バーコード検出非対応のブラウザです。番号を直接入力してください。"); stop(); return; }
-      const detector = new window.BarcodeDetector({ formats: ["ean_13","ean_8","code_128","upc_a","upc_e","itf"] });
-      const detect = async () => {
-        if (!videoRef.current || !streamRef.current) return;
+      const hints = new Map();
+      hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        window.ZXing.BarcodeFormat.EAN_13,
+        window.ZXing.BarcodeFormat.EAN_8,
+        window.ZXing.BarcodeFormat.CODE_128,
+        window.ZXing.BarcodeFormat.UPC_A,
+        window.ZXing.BarcodeFormat.UPC_E,
+      ]);
+      const reader = new window.ZXing.MultiFormatReader();
+      reader.setHints(hints);
+
+      setActive(true);
+      setLoading(false);
+
+      timerRef.current = setInterval(() => {
+        if (!videoRef.current || !canvasRef.current || !streamRef.current) return;
+        const v = videoRef.current;
+        const c = canvasRef.current;
+        c.width = v.videoWidth;
+        c.height = v.videoHeight;
+        if (!c.width) return;
+        c.getContext("2d").drawImage(v, 0, 0);
         try {
-          const barcodes = await detector.detect(videoRef.current);
-          if (barcodes.length > 0) { stop(); onScan(barcodes[0].rawValue); return; }
+          const lum = new window.ZXing.HTMLCanvasElementLuminanceSource(c);
+          const bmp = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(lum));
+          const result = reader.decode(bmp);
+          if (result) { stop(); onScan(result.getText()); }
         } catch (_) {}
-        animRef.current = requestAnimationFrame(detect);
-      };
-      animRef.current = requestAnimationFrame(detect);
-    } catch (e) { setError("カメラへのアクセスが許可されていません"); }
+      }, 250);
+    } catch (e) {
+      setError("カメラへのアクセスが許可されていません");
+      setLoading(false);
+      stop();
+    }
   };
 
   useEffect(() => () => stop(), []);
@@ -258,10 +296,11 @@ function CameraScanner({ onScan, C, btnSt }) {
     <div>
       <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", aspectRatio: "4/3", marginBottom: 12 }}>
         <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover", display: active ? "block" : "none" }} playsInline muted />
+        <canvas ref={canvasRef} style={{ display: "none" }} />
         {!active && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
             <ScanLine size={36} color="rgba(255,255,255,0.4)" />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>カメラを起動してスキャン</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{loading ? "準備中..." : "カメラを起動してスキャン"}</span>
           </div>
         )}
         {active && (
@@ -274,8 +313,8 @@ function CameraScanner({ onScan, C, btnSt }) {
         )}
       </div>
       {error && <p style={{ fontSize: 12, color: "#c94f4f", textAlign: "center", margin: "0 0 12px", lineHeight: 1.6 }}>{error}</p>}
-      <button onClick={active ? stop : start} style={{ ...btnSt, background: active ? "#c94f4f" : btnSt.background }}>
-        {active ? "スキャン停止" : "カメラを起動してスキャン"}
+      <button onClick={active ? stop : start} disabled={loading} style={{ ...btnSt, background: active ? "#c94f4f" : btnSt.background, opacity: loading ? 0.6 : 1 }}>
+        {loading ? "準備中..." : active ? "スキャン停止" : "カメラを起動してスキャン"}
       </button>
     </div>
   );
