@@ -6,7 +6,7 @@ const NOTE_RSS_URL = "https://note.com/cs_guide/rss";
  
 // Threads の RSS URL（rss.app で生成したURLをここに貼る）
 // 未設定のときは Threads 投稿はスキップされる
-const THREADS_RSS_URL = "";
+const THREADS_RSS_URL = "https://rss.app/feeds/rbcimUNbxSt4rtAZ.xml";
  
 function parseRSS(xml, type) {
   const posts = [];
