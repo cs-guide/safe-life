@@ -149,6 +149,68 @@ function AffCard({ p }) {
 
 const ttStyle = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textPrimary };
 
+// ── 広告セクション（各ページ下部）──────────────────────────
+function AdSection({ isHome }) {
+  const rakutenRef = useRef(null);
+  useEffect(() => {
+    if (!rakutenRef.current) return;
+    rakutenRef.current.innerHTML = "";
+    window.rakuten_design = "slide";
+    window.rakuten_affiliateId = "0f720b8c.0ab39c44.0f720b8d.56ca2f62";
+    window.rakuten_items = "ctsmatch";
+    window.rakuten_genreId = "0";
+    window.rakuten_size = "468x160";
+    window.rakuten_target = "_blank";
+    window.rakuten_theme = "gray";
+    window.rakuten_border = "off";
+    window.rakuten_auto_mode = "on";
+    window.rakuten_genre_title = "off";
+    window.rakuten_recommend = "on";
+    window.rakuten_ts = String(Date.now());
+    const s = document.createElement("script");
+    s.src = "https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106";
+    s.async = true;
+    rakutenRef.current.appendChild(s);
+  }, []);
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+      <div style={{ fontSize: 9, color: "#bbb", letterSpacing: "0.08em" }}>広告・PR</div>
+
+      {/* ホームのみ表示する広告 */}
+      {isHome && (
+        <>
+          <div style={{ textAlign: "center" }}>
+            <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" rel="nofollow" target="_blank">
+              <img border="0" width="300" height="250" alt="" src="https://www20.a8.net/svt/bgt?aid=230711610041&wid=005&eno=01&mid=s00000014332001005000&mc=1" />
+            </a>
+            <img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" alt="" />
+          </div>
+        </>
+      )}
+
+      {/* 全ページ共通広告① */}
+      <div style={{ textAlign: "center" }}>
+        <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+DP2S2+12N4+68MF5" rel="nofollow" target="_blank">
+          <img border="0" width="350" height="240" alt="" src="https://www23.a8.net/svt/bgt?aid=230711610023&wid=005&eno=01&mid=s00000005008001048000&mc=1" />
+        </a>
+        <img border="0" width="1" height="1" src="https://www16.a8.net/0.gif?a8mat=3TCY7U+DP2S2+12N4+68MF5" alt="" />
+      </div>
+
+      {/* 全ページ共通広告② */}
+      <div style={{ textAlign: "center" }}>
+        <a href="https://px.a8.net/svt/ejp?a8mat=3TCRX0+BOXKK2+3TOE+5Z6WX" rel="nofollow" target="_blank">
+          <img border="0" width="300" height="250" alt="" src="https://www21.a8.net/svt/bgt?aid=230703444707&wid=005&eno=01&mid=s00000017843001004000&mc=1" />
+        </a>
+        <img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=3TCRX0+BOXKK2+3TOE+5Z6WX" alt="" />
+      </div>
+
+      {/* 楽天ウィジェット */}
+      <div ref={rakutenRef} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />
+    </div>
+  );
+}
+
 function RakutenWidget() {
   const ref = useRef(null);
   useEffect(() => {
@@ -507,6 +569,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   </button>
                 ))}
               </div>
+              <AdSection isHome={true} />
             </div>
           );
         })()}
@@ -721,6 +784,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   })}
                 </Card>
               )}
+              <AdSection />
             </div>
           );
         })()}
@@ -831,7 +895,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 </div>
               </Card>
             )}
-          </div>
+          <AdSection />
         )}
 
         {/* AI */}
@@ -881,6 +945,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
             )}
             {aiResult && aiResult.error && <Card><p style={{ textAlign: "center", color: C.danger, fontSize: 13, margin: 0 }}>エラーが発生しました。再度お試しください。</p></Card>}
+            <AdSection />
           </div>
         )}
 
@@ -1002,6 +1067,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 </div>
               </>
             )}
+            <AdSection />
           </div>
         )}
 
@@ -1076,6 +1142,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
               {filteredAff.map(p => <AffCard key={p.asin} p={p} />)}
             </Card>
+            <AdSection />
           </div>
         )}
 
@@ -1170,23 +1237,8 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 <div>データ: 端末内のみに保存</div>
               </div>
             </Card>
+            <AdSection />
           </div>
-        )}
-      </div>
-
-      {/* 広告エリア：タブによって切り替え */}
-      <div style={{ position: "fixed", bottom: 56, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(255,255,255,0.97)", borderTop: `1px solid ${C.border}`, padding: "8px 0", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 90, minHeight: 60, overflow: "hidden" }}>
-        {tab === 0 ? (
-          /* ホームはa8広告 */
-          <div style={{ textAlign: "center" }}>
-            <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" rel="nofollow" target="_blank">
-              <img alt="" src="https://www20.a8.net/svt/bgt?aid=230711610041&wid=005&eno=01&mid=s00000014332001005000&mc=1" style={{ display: "block", width: 300, height: 250 }} />
-            </a>
-            <img width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" alt="" />
-          </div>
-        ) : (
-          /* 他タブは楽天ウィジェット */
-          <RakutenWidget />
         )}
       </div>
 
