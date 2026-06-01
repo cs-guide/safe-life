@@ -68,16 +68,7 @@ const AFFILIATES = [
   { asin: "B07QXYZ005", name: "活性炭空気清浄機", brand: "ダイキン", price: "¥24,800", tag: "空気清浄", note: "VOC・化学物質の吸着に特化" },
 ].map(p => ({ ...p, url: makeUrl(p.asin) }));
 
-const DIARY_INIT = [
-  { id: 1, date: "2026-05-18T09:00", exposureTime: "2026-05-18T09:00", symptoms: ["頭痛", "めまい"], exposures: ["芳香剤"], severity: 7, note: "コンビニで芳香剤が強かった", customExposure: "" },
-  { id: 2, date: "2026-05-19T16:00", exposureTime: "2026-05-19T14:00", symptoms: ["頭痛", "動悸", "目の刺激", "脳疲労"], exposures: ["柔軟剤"], severity: 6, note: "柔軟剤の強い人と同じ空間に30分", customExposure: "" },
-  { id: 3, date: "2026-05-20T08:00", exposureTime: "2026-05-20T08:00", symptoms: ["頭痛"], exposures: ["排気ガス", "タバコ"], severity: 6, note: "通勤中", customExposure: "" },
-  { id: 4, date: "2026-05-20T21:00", exposureTime: "2026-05-20T19:00", symptoms: ["息苦しさ", "のどの痛み"], exposures: ["塗料・ニス"], severity: 8, note: "近所で工事", customExposure: "" },
-  { id: 5, date: "2026-05-21T12:00", exposureTime: "2026-05-21T12:00", symptoms: ["皮膚のかゆみ"], exposures: ["洗剤"], severity: 3, note: "", customExposure: "" },
-  { id: 6, date: "2026-05-22T10:00", exposureTime: "2026-05-22T10:00", symptoms: [], exposures: [], severity: 2, note: "在宅で快調", customExposure: "" },
-  { id: 7, date: "2026-05-23T17:30", exposureTime: "2026-05-23T15:00", symptoms: ["頭痛", "吐き気", "脳疲労"], exposures: ["香水・コロン", "芳香剤"], severity: 8, note: "美容院の待合室", customExposure: "" },
-  { id: 8, date: "2026-05-24T09:00", exposureTime: "2026-05-24T09:00", symptoms: ["集中力低下"], exposures: ["印刷物"], severity: 3, note: "", customExposure: "" },
-];
+const DIARY_INIT = [];
 
 const sevColor = (s) => s <= 3 ? C.accent : s <= 6 ? C.warn : C.danger;
 const TAG_COLORS = { 洗浄料: "#d4edda", 洗剤: "#d0e8ff", 洗濯: "#e8d5ff", 防護: "#ffe5cc", 空気清浄: "#d4edda", スキンケア: "#ffe0f0" };
@@ -309,12 +300,13 @@ export default function App() {
   const VISIBLE_NAV = [0, 1, 2, 4, 5, 6]; // 3（分析）を非表示
 
   return (
-    <div style={{ fontFamily: "Noto Sans JP, sans-serif", background: C.bg, minHeight: "100vh", maxWidth: 430, margin: "0 auto", paddingBottom: 88, color: C.textPrimary }}>
+    <div style={{ fontFamily: "Noto Sans JP, sans-serif", color: C.textPrimary }}><style>{`* { box-sizing: border-box; } body { margin: 0; background: #eef3ee; } .app-inner { max-width: 430px; margin: 0 auto; min-height: 100vh; padding-bottom: 88px; background: #f5f8f5; } @media (min-width: 768px) { .app-inner { box-shadow: 0 0 60px rgba(0,0,0,0.10); } }`}</style>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+      <div className="app-inner">
 
       {/* オンボーディング */}
       {storageReady && onboarding && (
-        <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 100, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, maxWidth: 430, margin: "0 auto" }}>
+        <div style={{ position: "fixed", inset: 0, background: C.bg, zIndex: 100, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, maxWidth: 430, left: "50%", transform: "translateX(-50%)" }}>
           <div style={{ width: 64, height: 64, borderRadius: 20, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
             <Leaf size={32} color={C.accent} strokeWidth={1.5} />
           </div>
@@ -1137,6 +1129,7 @@ export default function App() {
           </div>
         );
       })()}
+      </div>
     </div>
   );
 }
