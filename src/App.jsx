@@ -498,19 +498,27 @@ export default function App() {
       setScanResult({ ...p, hits });
       return;
     }
-    // Open Food Facts API で検索
     setScanLoading(true);
     setScanResult(null);
+    // 食品・化粧品・日用品の3DBを並行検索
+    const APIS = [
+      { url: `https://world.openfoodfacts.org/api/v0/product/${code.trim()}.json`, label: "食品DB" },
+      { url: `https://world.openbeautyfacts.org/api/v0/product/${code.trim()}.json`, label: "化粧品DB" },
+      { url: `https://world.openproductsfacts.org/api/v0/product/${code.trim()}.json`, label: "日用品DB" },
+    ];
     try {
-      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code.trim()}.json`);
-      const data = await res.json();
-      if (data.status === 1) {
-        const prod = data.product;
-        const rawText = prod.ingredients_text_ja || prod.ingredients_text || "";
+      const results = await Promise.allSettled(APIS.map(a => fetch(a.url).then(r => r.json()).then(d => ({ ...d, _label: a.label }))));
+      const found = results
+        .filter(r => r.status === "fulfilled" && r.value?.status === 1)
+        .map(r => r.value);
+      if (found.length > 0) {
+        const prod = found[0].product;
+        const dbLabel = found[0]._label;
+        const rawText = prod.ingredients_text_ja || prod.ingredients_text || prod.ingredients_text_en || "";
         const ingredients = rawText
-          .replace(/\(.*?\)/g, "")
+          .replace(/\([^)]*\)/g, "")
           .split(/[,、，\n]/)
-          .map(s => s.replace(/^\s*[-・]\s*/, "").trim())
+          .map(s => s.replace(/^\s*[-・*]\s*/, "").trim())
           .filter(Boolean);
         const hits = ingredients.filter(ing => allergens.some(a => ing.includes(a) || a.includes(ing.split("（")[0])));
         setScanResult({
@@ -518,7 +526,7 @@ export default function App() {
           ingredients: ingredients.length > 0 ? ingredients : ["成分情報なし"],
           hits,
           safe: hits.length === 0,
-          source: "openfoodfacts",
+          source: dbLabel,
         });
       } else {
         setScanResult({ error: true, code });
@@ -1270,8 +1278,8 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                     {scanResult.hits.map(h => <div key={h} style={{ fontSize: 12, color: C.danger, marginBottom: 2 }}>· {h}</div>)}
                   </div>
                 )}
-                {scanResult.source === "openfoodfacts" && (
-                  <p style={{ fontSize: 10, color: C.textMuted, margin: "0 0 12px" }}>出典: Open Food Facts（成分情報が不完全な場合があります）</p>
+                {scanResult.source && (
+                  <p style={{ fontSize: 10, color: C.textMuted, margin: "0 0 12px" }}>出典: {scanResult.source}（成分情報が不完全な場合があります）</p>
                 )}
                 <SLabel>全成分</SLabel>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: scanResult.hits.length > 0 ? 20 : 0 }}>
