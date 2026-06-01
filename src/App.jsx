@@ -22,12 +22,7 @@ const SHEET_NAME = "shops";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
 
 // フォールバック用サンプルデータ（スプレッドシート未設定時に表示）
-const SHOPS_FALLBACK = [
-  { id: 1, name: "ナチュラルカフェ 緑の庭", area: "渋谷区", category: "カフェ", notes: "無香料・無添加メニュー完備。芳香剤なし。" },
-  { id: 2, name: "オーガニックマルシェ", area: "世田谷区", category: "スーパー", notes: "天然素材のみ。清掃は重曹・クエン酸のみ使用。" },
-  { id: 3, name: "ゆっくりパン工房", area: "目黒区", category: "ベーカリー", notes: "添加物・改良剤不使用。換気良好。" },
-  { id: 4, name: "無添加薬局 やすらぎ", area: "新宿区", category: "薬局", notes: "MCS対応。スタッフが無香料ポリシー遵守。" },
-];
+const SHOPS_FALLBACK = [];
 
 // ── Colors ─────────────────────────────────────────────────
 const C = {
@@ -197,7 +192,9 @@ function AdSection({ isHome }) {
         </div>
       )}
       {adIndex === 3 && (
-        <RakutenAd />
+        <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+          <RakutenAd />
+        </div>
       )}
     </div>
   );
