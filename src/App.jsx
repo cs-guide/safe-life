@@ -150,11 +150,12 @@ function AffCard({ p }) {
 const ttStyle = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textPrimary };
 
 // ── 広告セクション（各ページ下部）──────────────────────────
-function AdSection({ isHome }) {
-  const rakutenRef = useRef(null);
+// 楽天ウィジェットを独立コンポーネント化（ref が確実に mount 後に使われるようにする）
+function RakutenAd() {
+  const ref = useRef(null);
   useEffect(() => {
-    if (!rakutenRef.current) return;
-    rakutenRef.current.innerHTML = "";
+    if (!ref.current) return;
+    ref.current.innerHTML = "";
     window.rakuten_design = "slide";
     window.rakuten_affiliateId = "0f720b8c.0ab39c44.0f720b8d.56ca2f62";
     window.rakuten_items = "ctsmatch";
@@ -170,9 +171,12 @@ function AdSection({ isHome }) {
     const s = document.createElement("script");
     s.src = "https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106";
     s.async = true;
-    rakutenRef.current.appendChild(s);
+    ref.current.appendChild(s);
   }, []);
+  return <div ref={ref} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />;
+}
 
+function AdSection({ isHome }) {
   // タブ番号に応じて広告を1つだけ表示（isHomeは数値で渡す）
   const adIndex = typeof isHome === "number" ? isHome % 4 : 0;
 
@@ -205,8 +209,74 @@ function AdSection({ isHome }) {
         </div>
       )}
       {adIndex === 3 && (
-        <div ref={rakutenRef} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />
+        <RakutenAd />
       )}
+    </div>
+  );
+}
+
+// ── カメラバーコードスキャナー ────────────────────────────────
+function CameraScanner({ onScan, C, btnSt }) {
+  const videoRef = useRef(null);
+  const [active, setActive] = useState(false);
+  const [error, setError] = useState(null);
+  const animRef = useRef(null);
+  const streamRef = useRef(null);
+
+  const stop = () => {
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+    setActive(false);
+  };
+
+  const start = async () => {
+    setError(null);
+    if (!navigator.mediaDevices?.getUserMedia) { setError("このブラウザはカメラに対応していません"); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+      setActive(true);
+
+      if (!("BarcodeDetector" in window)) { setError("バーコード検出非対応のブラウザです。番号を直接入力してください。"); stop(); return; }
+      const detector = new window.BarcodeDetector({ formats: ["ean_13","ean_8","code_128","upc_a","upc_e","itf"] });
+      const detect = async () => {
+        if (!videoRef.current || !streamRef.current) return;
+        try {
+          const barcodes = await detector.detect(videoRef.current);
+          if (barcodes.length > 0) { stop(); onScan(barcodes[0].rawValue); return; }
+        } catch (_) {}
+        animRef.current = requestAnimationFrame(detect);
+      };
+      animRef.current = requestAnimationFrame(detect);
+    } catch (e) { setError("カメラへのアクセスが許可されていません"); }
+  };
+
+  useEffect(() => () => stop(), []);
+
+  return (
+    <div>
+      <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", aspectRatio: "4/3", marginBottom: 12 }}>
+        <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover", display: active ? "block" : "none" }} playsInline muted />
+        {!active && (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
+            <ScanLine size={36} color="rgba(255,255,255,0.4)" />
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>カメラを起動してスキャン</span>
+          </div>
+        )}
+        {active && (
+          <>
+            <div style={{ position: "absolute", top: "20%", left: "10%", right: "10%", bottom: "20%", border: "2px solid #41c9b4", borderRadius: 8 }} />
+            <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, textAlign: "center" }}>
+              <span style={{ fontSize: 11, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "4px 12px", borderRadius: 20 }}>バーコードを枠内に合わせてください</span>
+            </div>
+          </>
+        )}
+      </div>
+      {error && <p style={{ fontSize: 12, color: "#c94f4f", textAlign: "center", margin: "0 0 12px", lineHeight: 1.6 }}>{error}</p>}
+      <button onClick={active ? stop : start} style={{ ...btnSt, background: active ? "#c94f4f" : btnSt.background }}>
+        {active ? "スキャン停止" : "カメラを起動してスキャン"}
+      </button>
     </div>
   );
 }
@@ -1083,24 +1153,10 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
         {tab === 5 && (
           <div>
             <Card>
-              <div style={{ background: C.surfaceHigh, borderRadius: 12, height: 140, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, position: "relative", overflow: "hidden", border: `1px solid ${C.border}` }}>
-                <div style={{ position: "absolute", top: "35%", left: "15%", right: "15%", height: 1.5, background: C.accent, opacity: 0.6 }} />
-                {[["22%","15%","top","left"],["22%","15%","top","right"],["22%","15%","bottom","left"],["22%","15%","bottom","right"]].map(([t,l,v,h],i) => {
-                  const bv = v === "top" ? "borderTop" : "borderBottom";
-                  const bh = h === "left" ? "borderLeft" : "borderRight";
-                  return <div key={i} style={{ position: "absolute", [v]: t, [h]: l, width: 14, height: 14, [bv]: `2px solid ${C.accent}`, [bh]: `2px solid ${C.accent}` }} />;
-                })}
-                <ScanLine size={28} color={`${C.accent}50`} />
-              </div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <input value={scanCode} onChange={e => setScanCode(e.target.value)} placeholder="バーコード番号を入力" style={{ ...inputSt, flex: 1 }} />
+              <CameraScanner onScan={(code) => { setScanCode(code); doScan(code); }} C={C} btnSt={btnSt} />
+              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                <input value={scanCode} onChange={e => setScanCode(e.target.value)} onKeyDown={e => e.key === "Enter" && doScan(scanCode)} placeholder="番号を直接入力" style={{ ...inputSt, flex: 1 }} />
                 <button onClick={() => doScan(scanCode)} style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "0 18px", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", flexShrink: 0 }}>検索</button>
-              </div>
-              <SLabel>デモ用バーコード</SLabel>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {Object.keys(PRODUCTS).map(code => (
-                  <button key={code} onClick={() => { setScanCode(code); doScan(code); }} style={{ fontSize: 10, padding: "4px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", cursor: "pointer", color: C.textSecondary, fontFamily: "inherit" }}>{code}</button>
-                ))}
               </div>
             </Card>
 
