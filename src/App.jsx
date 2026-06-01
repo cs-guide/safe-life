@@ -86,16 +86,11 @@ const MCS_TIPS = [
   { title: "安全な場所を記録しておこう", body: "「ここなら大丈夫」という場所をリストにしておくと、外出時の安心感につながります。マップ機能を活用してみましょう。" },
 ];
 
-// ★ 投稿管理スプレッドシートID（安全マップと別シートでもOK）
-// シート名「posts」、列順: タイプ(note/threads)・タイトル・日付・URL
-const POSTS_SHEET_ID = "your-spreadsheet-id-here";
-const POSTS_SHEET_URL = `https://docs.google.com/spreadsheets/d/${POSTS_SHEET_ID}/gviz/tq?tqx=out:json&sheet=posts`;
-
-// ★ フォールバック（スプレッドシート未設定時）
+// note・Threads の最新投稿を /api/posts から自動取得
+// フォールバック（API取得失敗時に表示するサンプル）
 const POSTS_FALLBACK = [
-  { type: "note", Icon: FileText, title: "化学物質過敏症と診断されたら最初にすること", date: "2026-05-22", url: "https://note.com" },
-  { type: "note", Icon: FileText, title: "無添加洗剤おすすめ5選【2026年版】", date: "2026-05-18", url: "https://note.com" },
-  { type: "threads", Icon: MessageCircle, title: "今日から柔軟剤をやめてみた話。3日目の変化が...", date: "2026-05-24", url: "https://www.threads.net" },
+  { type: "note", Icon: FileText, title: "化学物質過敏症と診断されたら最初にすること", date: "2026-05-22", url: "https://note.com/cs-guide" },
+  { type: "note", Icon: FileText, title: "無添加洗剤おすすめ5選【2026年版】", date: "2026-05-18", url: "https://note.com/cs-guide" },
 ];
 
 // ── Shared Components ──────────────────────────────────────
@@ -207,22 +202,21 @@ export default function App() {
   const [shopsFromSheet, setShopsFromSheet] = useState(false);
   const [posts, setPosts] = useState(POSTS_FALLBACK);
 
-  // 投稿をスプレッドシートから取得
+  // note・Threads の最新投稿を API Route から自動取得
   const fetchPosts = async () => {
-    if (POSTS_SHEET_ID === "your-spreadsheet-id-here") return;
     try {
-      const res = await fetch(POSTS_SHEET_URL);
-      const text = await res.text();
-      const json = JSON.parse(text.replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "").replace(");", ""));
-      const parsed = json.table.rows.map((row, i) => ({
-        type: row.c[0]?.v || "note",
-        Icon: (row.c[0]?.v || "note") === "note" ? FileText : MessageCircle,
-        title: row.c[1]?.v || "",
-        date: row.c[2]?.v || "",
-        url: row.c[3]?.v || "",
-      })).filter(r => r.title);
+      const res = await fetch("/api/posts");
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json();
+      const parsed = data.map(p => ({
+        ...p,
+        Icon: p.type === "note" ? FileText : MessageCircle,
+      }));
       if (parsed.length > 0) setPosts(parsed);
-    } catch(e) { console.error("投稿シート読み込みエラー:", e); }
+    } catch (e) {
+      console.error("投稿取得エラー:", e);
+      // エラー時はフォールバックのまま表示
+    }
   };
 
   // スプレッドシートからお店データを取得
