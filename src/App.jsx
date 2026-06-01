@@ -896,6 +896,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </Card>
             )}
           <AdSection />
+          </div>
         )}
 
         {/* AI */}
