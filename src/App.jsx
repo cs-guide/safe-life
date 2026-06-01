@@ -153,11 +153,11 @@ const ttStyle = { background: C.surface, border: `1px solid ${C.border}`, border
 // 楽天ウィジェットをiframeで実装（SPA内でのスクリプト動的注入の問題を回避）
 function RakutenAd() {
   const ts = useRef(Date.now()).current;
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;overflow:hidden;background:transparent"><script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="0f720b8c.0ab39c44.0f720b8d.56ca2f62";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="${ts}";<\/script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"><\/script></body></html>`;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;overflow:hidden;background:transparent"><script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="0f720b8c.0ab39c44.0f720b8d.56ca2f62";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="336x280";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="${ts}";<\/script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"><\/script></body></html>`;
   return (
     <iframe
       srcDoc={html}
-      style={{ width: "100%", maxWidth: 430, height: 170, border: "none", display: "block" }}
+      style={{ width: "100%", maxWidth: 430, height: 295, border: "none", display: "block" }}
       title="楽天広告"
       sandbox="allow-scripts allow-popups allow-same-origin"
     />
