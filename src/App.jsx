@@ -173,40 +173,40 @@ function AdSection({ isHome }) {
     rakutenRef.current.appendChild(s);
   }, []);
 
+  // タブ番号に応じて広告を1つだけ表示
+  const adIndex = isHome ? 0 : typeof isHome === "number" ? isHome % 3 : 1;
+
   return (
-    <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+    <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
       <div style={{ fontSize: 9, color: "#bbb", letterSpacing: "0.08em" }}>広告・PR</div>
 
-      {/* ホームのみ表示する広告 */}
-      {isHome && (
-        <>
-          <div style={{ textAlign: "center" }}>
-            <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" rel="nofollow" target="_blank">
-              <img border="0" width="300" height="250" alt="" src="https://www20.a8.net/svt/bgt?aid=230711610041&wid=005&eno=01&mid=s00000014332001005000&mc=1" />
-            </a>
-            <img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" alt="" />
-          </div>
-        </>
+      {adIndex === 0 && (
+        <div style={{ textAlign: "center" }}>
+          <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" rel="nofollow" target="_blank">
+            <img border="0" width="300" height="250" alt="" src="https://www20.a8.net/svt/bgt?aid=230711610041&wid=005&eno=01&mid=s00000014332001005000&mc=1" />
+          </a>
+          <img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" alt="" />
+        </div>
       )}
-
-      {/* 全ページ共通広告① */}
-      <div style={{ textAlign: "center" }}>
-        <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+DP2S2+12N4+68MF5" rel="nofollow" target="_blank">
-          <img border="0" width="350" height="240" alt="" src="https://www23.a8.net/svt/bgt?aid=230711610023&wid=005&eno=01&mid=s00000005008001048000&mc=1" />
-        </a>
-        <img border="0" width="1" height="1" src="https://www16.a8.net/0.gif?a8mat=3TCY7U+DP2S2+12N4+68MF5" alt="" />
-      </div>
-
-      {/* 全ページ共通広告② */}
-      <div style={{ textAlign: "center" }}>
-        <a href="https://px.a8.net/svt/ejp?a8mat=3TCRX0+BOXKK2+3TOE+5Z6WX" rel="nofollow" target="_blank">
-          <img border="0" width="300" height="250" alt="" src="https://www21.a8.net/svt/bgt?aid=230703444707&wid=005&eno=01&mid=s00000017843001004000&mc=1" />
-        </a>
-        <img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=3TCRX0+BOXKK2+3TOE+5Z6WX" alt="" />
-      </div>
-
-      {/* 楽天ウィジェット */}
-      <div ref={rakutenRef} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />
+      {adIndex === 1 && (
+        <div style={{ textAlign: "center" }}>
+          <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+DP2S2+12N4+68MF5" rel="nofollow" target="_blank">
+            <img border="0" width="350" height="240" alt="" src="https://www23.a8.net/svt/bgt?aid=230711610023&wid=005&eno=01&mid=s00000005008001048000&mc=1" />
+          </a>
+          <img border="0" width="1" height="1" src="https://www16.a8.net/0.gif?a8mat=3TCY7U+DP2S2+12N4+68MF5" alt="" />
+        </div>
+      )}
+      {adIndex === 2 && (
+        <div style={{ textAlign: "center" }}>
+          <a href="https://px.a8.net/svt/ejp?a8mat=3TCRX0+BOXKK2+3TOE+5Z6WX" rel="nofollow" target="_blank">
+            <img border="0" width="300" height="250" alt="" src="https://www21.a8.net/svt/bgt?aid=230703444707&wid=005&eno=01&mid=s00000017843001004000&mc=1" />
+          </a>
+          <img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=3TCRX0+BOXKK2+3TOE+5Z6WX" alt="" />
+        </div>
+      )}
+      {adIndex === 3 && (
+        <div ref={rakutenRef} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />
+      )}
     </div>
   );
 }
@@ -569,7 +569,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   </button>
                 ))}
               </div>
-              <AdSection isHome={true} />
+              <AdSection isHome={0} />
             </div>
           );
         })()}
@@ -784,7 +784,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   })}
                 </Card>
               )}
-              <AdSection />
+              <AdSection isHome={1} />
             </div>
           );
         })()}
@@ -895,7 +895,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 </div>
               </Card>
             )}
-          <AdSection />
+          <AdSection isHome={2} />
           </div>
         )}
 
@@ -946,7 +946,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
             )}
             {aiResult && aiResult.error && <Card><p style={{ textAlign: "center", color: C.danger, fontSize: 13, margin: 0 }}>エラーが発生しました。再度お試しください。</p></Card>}
-            <AdSection />
+            <AdSection isHome={3} />
           </div>
         )}
 
@@ -1068,7 +1068,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 </div>
               </>
             )}
-            <AdSection />
+            <AdSection isHome={1} />
           </div>
         )}
 
@@ -1143,7 +1143,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
               {filteredAff.map(p => <AffCard key={p.asin} p={p} />)}
             </Card>
-            <AdSection />
+            <AdSection isHome={2} />
           </div>
         )}
 
@@ -1238,7 +1238,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 <div>データ: 端末内のみに保存</div>
               </div>
             </Card>
-            <AdSection />
+            <AdSection isHome={0} />
           </div>
         )}
       </div>
