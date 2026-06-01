@@ -203,8 +203,8 @@ function AdSection({ isHome }) {
   );
 }
 
-// ── カメラバーコードスキャナー（BarcodeDetector優先 + ZXing fallback）────────
-function CameraScanner({ onScan, C, btnSt }) {
+// ── (CameraScanner removed — replaced by ingredient photo analysis) ──
+function CameraScanner_UNUSED({ onScan, C, btnSt }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [active, setActive] = useState(false);
@@ -386,9 +386,10 @@ export default function App() {
     try { const s = localStorage.getItem("safelife_diary"); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [form, setForm] = useState({ symptoms: [], exposures: [], severity: 5, note: "", date: new Date().toISOString().slice(0, 16), exposureTime: new Date().toISOString().slice(0, 16), customExposure: "" });
-  const [scanCode, setScanCode] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [scanLoading, setScanLoading] = useState(false);
+  const [scanPreview, setScanPreview] = useState(null);
+  const [scanImageData, setScanImageData] = useState(null);
   const [shopFilter, setShopFilter] = useState("全て");
   const [selectedShop, setSelectedShop] = useState(null);
   const [showShopForm, setShowShopForm] = useState(false);
@@ -489,50 +490,55 @@ export default function App() {
     showToast("記録しました");
   };
 
-  const doScan = async (code) => {
-    if (!code.trim()) return;
-    // ローカルDBを先に確認
-    const p = PRODUCTS[code];
-    if (p) {
-      const hits = p.ingredients.filter(ing => allergens.some(a => ing.includes(a) || a.includes(ing.split("（")[0])));
-      setScanResult({ ...p, hits });
-      return;
-    }
+  // 画像をリサイズしてbase64に変換
+  const resizeImage = (file) => new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve({ base64: canvas.toDataURL("image/jpeg", 0.85).split(",")[1], mediaType: "image/jpeg" });
+    };
+    img.src = url;
+  });
+
+  const handleImageCapture = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanResult(null);
+    setScanPreview(URL.createObjectURL(file));
+    const { base64, mediaType } = await resizeImage(file);
+    setScanImageData({ base64, mediaType });
+  };
+
+  const analyzeImage = async () => {
+    if (!scanImageData) return;
     setScanLoading(true);
     setScanResult(null);
-    // 食品・化粧品・日用品の3DBを並行検索
-    const APIS = [
-      { url: `https://world.openfoodfacts.org/api/v0/product/${code.trim()}.json`, label: "食品DB" },
-      { url: `https://world.openbeautyfacts.org/api/v0/product/${code.trim()}.json`, label: "化粧品DB" },
-      { url: `https://world.openproductsfacts.org/api/v0/product/${code.trim()}.json`, label: "日用品DB" },
-    ];
     try {
-      const results = await Promise.allSettled(APIS.map(a => fetch(a.url).then(r => r.json()).then(d => ({ ...d, _label: a.label }))));
-      const found = results
-        .filter(r => r.status === "fulfilled" && r.value?.status === 1)
-        .map(r => r.value);
-      if (found.length > 0) {
-        const prod = found[0].product;
-        const dbLabel = found[0]._label;
-        const rawText = prod.ingredients_text_ja || prod.ingredients_text || prod.ingredients_text_en || "";
-        const ingredients = rawText
-          .replace(/\([^)]*\)/g, "")
-          .split(/[,、，\n]/)
-          .map(s => s.replace(/^\s*[-・*]\s*/, "").trim())
-          .filter(Boolean);
-        const hits = ingredients.filter(ing => allergens.some(a => ing.includes(a) || a.includes(ing.split("（")[0])));
-        setScanResult({
-          name: prod.product_name_ja || prod.product_name || code,
-          ingredients: ingredients.length > 0 ? ingredients : ["成分情報なし"],
-          hits,
-          safe: hits.length === 0,
-          source: dbLabel,
-        });
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: scanImageData.base64,
+          mediaType: scanImageData.mediaType,
+          allergens,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setScanResult({ error: true });
       } else {
-        setScanResult({ error: true, code });
+        setScanResult(data);
       }
     } catch {
-      setScanResult({ error: true, code });
+      setScanResult({ error: true });
     }
     setScanLoading(false);
   };
@@ -1257,39 +1263,108 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
         {/* SCAN */}
         {tab === 5 && (
           <div>
+            {/* 成分表撮影 */}
             <Card>
-              <CameraScanner onScan={(code) => { setScanCode(code); doScan(code); }} C={C} btnSt={btnSt} />
-              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                <input value={scanCode} onChange={e => setScanCode(e.target.value)} onKeyDown={e => e.key === "Enter" && doScan(scanCode)} placeholder="番号を直接入力" style={{ ...inputSt, flex: 1 }} />
-                <button onClick={() => doScan(scanCode)} style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 10, padding: "0 18px", cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: "inherit", flexShrink: 0 }}>検索</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <ScanLine size={14} color={C.accent} strokeWidth={1.5} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>成分表を撮影して確認</span>
               </div>
+              <p style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.7, margin: "0 0 16px" }}>
+                商品の成分一覧を写真に撮ると、登録した苦手成分が含まれているか自動でチェックします
+              </p>
+
+              {/* 撮影エリア */}
+              <label style={{ display: "block", cursor: "pointer" }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImageCapture}
+                  style={{ display: "none" }}
+                />
+                <div style={{ background: C.surfaceHigh, border: `2px dashed ${scanPreview ? C.accent : C.border}`, borderRadius: 14, overflow: "hidden", position: "relative", minHeight: 180, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+                  {scanPreview ? (
+                    <img src={scanPreview} alt="撮影した成分表" style={{ width: "100%", objectFit: "contain", maxHeight: 300, display: "block" }} />
+                  ) : (
+                    <div style={{ textAlign: "center", padding: 24 }}>
+                      <div style={{ width: 56, height: 56, borderRadius: 16, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                        <ScanLine size={26} color={C.accent} strokeWidth={1.5} />
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>タップして撮影</div>
+                      <div style={{ fontSize: 11, color: C.textMuted }}>成分表・原材料名の部分を撮ってください</div>
+                    </div>
+                  )}
+                </div>
+              </label>
+
+              {/* 撮り直しリンク */}
+              {scanPreview && (
+                <label style={{ display: "block", cursor: "pointer", textAlign: "center", marginBottom: 14 }}>
+                  <input type="file" accept="image/*" capture="environment" onChange={handleImageCapture} style={{ display: "none" }} />
+                  <span style={{ fontSize: 12, color: C.textSecondary, textDecoration: "underline" }}>撮り直す</span>
+                </label>
+              )}
+
+              <button
+                onClick={analyzeImage}
+                disabled={!scanPreview || scanLoading}
+                style={{ ...btnSt, opacity: !scanPreview || scanLoading ? 0.5 : 1 }}
+              >
+                {scanLoading ? "AIが解析中..." : "成分をチェックする"}
+              </button>
             </Card>
 
-            {scanLoading && <Card><p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: 0 }}>製品情報を検索中...</p></Card>}
+            {/* 解析中 */}
+            {scanLoading && (
+              <Card>
+                <div style={{ textAlign: "center", padding: 8 }}>
+                  <div style={{ fontSize: 13, color: C.textSecondary, marginBottom: 4 }}>成分表を読み取っています...</div>
+                  <div style={{ fontSize: 11, color: C.textMuted }}>苦手成分との照合中</div>
+                </div>
+              </Card>
+            )}
+
+            {/* 解析結果 */}
             {scanResult && !scanResult.error && (
               <Card>
-                <div style={{ fontSize: 15, fontWeight: 600, color: C.textPrimary, marginBottom: 12 }}>{scanResult.name}</div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: scanResult.hits.length === 0 ? C.accentDim : C.dangerDim, borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 600, color: scanResult.hits.length === 0 ? C.accent : C.danger, marginBottom: 16 }}>
-                  {scanResult.hits.length === 0 ? <Check size={14} color={C.accent} /> : <AlertTriangle size={14} color={C.danger} />}
-                  {scanResult.hits.length === 0 ? "苦手成分は含まれていません" : `${scanResult.hits.length}つの苦手成分が検出されました`}
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: (scanResult.hits?.length ?? 0) === 0 ? C.accentDim : C.dangerDim, borderRadius: 10, padding: "10px 18px", fontSize: 14, fontWeight: 700, color: (scanResult.hits?.length ?? 0) === 0 ? C.accent : C.danger, marginBottom: 18, width: "100%", boxSizing: "border-box" }}>
+                  {(scanResult.hits?.length ?? 0) === 0
+                    ? <><Check size={16} color={C.accent} /> 苦手成分は見つかりませんでした</>
+                    : <><AlertTriangle size={16} color={C.danger} /> {scanResult.hits.length}つの苦手成分を検出</>}
                 </div>
-                {scanResult.hits.length > 0 && (
-                  <div style={{ background: C.dangerDim, border: `1px solid ${C.danger}20`, borderRadius: 10, padding: "10px 14px", marginBottom: 16 }}>
-                    {scanResult.hits.map(h => <div key={h} style={{ fontSize: 12, color: C.danger, marginBottom: 2 }}>· {h}</div>)}
-                  </div>
+
+                {/* 検出された苦手成分 */}
+                {scanResult.hits?.length > 0 && (
+                  <>
+                    <SLabel>検出された苦手成分</SLabel>
+                    <div style={{ background: C.dangerDim, border: `1px solid ${C.danger}25`, borderRadius: 12, padding: "12px 16px", marginBottom: 18 }}>
+                      {scanResult.hits.map(h => (
+                        <div key={h} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <AlertTriangle size={12} color={C.danger} />
+                          <span style={{ fontSize: 13, color: C.danger, fontWeight: 600 }}>{h}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
-                {scanResult.source && (
-                  <p style={{ fontSize: 10, color: C.textMuted, margin: "0 0 12px" }}>出典: {scanResult.source}（成分情報が不完全な場合があります）</p>
-                )}
-                <SLabel>全成分</SLabel>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: scanResult.hits.length > 0 ? 20 : 0 }}>
-                  {scanResult.ingredients.map(ing => {
-                    const hit = scanResult.hits.includes(ing);
-                    return <span key={ing} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 8, background: hit ? C.dangerDim : C.surfaceHigh, color: hit ? C.danger : C.textSecondary, border: `1px solid ${hit ? C.danger+"30" : C.border}`, fontWeight: hit ? 700 : 400 }}>{ing}</span>;
+
+                {/* 全成分 */}
+                <SLabel>読み取った全成分</SLabel>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+                  {scanResult.ingredients?.map(ing => {
+                    const hit = scanResult.hits?.includes(ing);
+                    return (
+                      <span key={ing} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 8, background: hit ? C.dangerDim : C.surfaceHigh, color: hit ? C.danger : C.textSecondary, border: `1px solid ${hit ? C.danger+"30" : C.border}`, fontWeight: hit ? 700 : 400 }}>
+                        {ing}
+                      </span>
+                    );
                   })}
                 </div>
-                {!scanResult.safe && scanResult.hits.length > 0 && (
-                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                <p style={{ fontSize: 10, color: C.textMuted, margin: 0 }}>※ AIによる読み取りのため、誤認識が生じる場合があります。成分表の原文もあわせてご確認ください。</p>
+
+                {/* 苦手成分あり → 代替製品 */}
+                {scanResult.hits?.length > 0 && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, marginTop: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
                       <ShoppingBag size={14} color={C.accent} />
                       <span style={{ fontSize: 12, fontWeight: 600, color: C.accent }}>代替製品のおすすめ</span>
@@ -1301,16 +1376,18 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 )}
               </Card>
             )}
+
             {scanResult && scanResult.error && (
               <Card>
-                <p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: "0 0 8px" }}>「{scanResult.code}」の製品情報が見つかりませんでした</p>
-                <p style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: 0 }}>国内製品はデータベースに登録されていない場合があります</p>
+                <p style={{ textAlign: "center", color: C.textMuted, fontSize: 13, margin: "0 0 8px" }}>解析できませんでした</p>
+                <p style={{ textAlign: "center", fontSize: 11, color: C.textMuted, margin: 0 }}>成分表がはっきり写るよう撮り直してみてください</p>
               </Card>
             )}
 
+            {/* おすすめ製品 */}
             <Card>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <Heart size={14} color={C.accent} />
+                <Heart size={14} color={C.accent} strokeWidth={1.5} />
                 <SLabel>MCS対応おすすめ製品</SLabel>
                 <span style={{ fontSize: 9, color: C.textMuted, marginLeft: "auto" }}>PR・広告</span>
               </div>
