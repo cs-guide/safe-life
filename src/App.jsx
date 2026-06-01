@@ -12,7 +12,7 @@ const ASSOCIATE_ID = "rnai-22";
 const makeUrl = (asin) => `https://www.amazon.co.jp/dp/${asin}/?tag=${ASSOCIATE_ID}`;
 
 // ★ GoogleフォームのURLをここに入れてください
-const SHOP_FORM_URL = "https://forms.google.com/your-form-url-here";
+const SHOP_FORM_URL = "https://forms.gle/a4Bsw23kmZkUBnuX6";
 
 // ★ スプレッドシートのIDをここに入れてください
 // 手順: スプレッドシートURL https://docs.google.com/spreadsheets/d/【ここ】/edit の【ここ】の部分
@@ -286,7 +286,8 @@ export default function App() {
     setAiLoading(false);
   };
 
-  const shopCategories = ["全て", ...new Set(shops.map(s => s.category).filter(Boolean))];
+  const SHOP_CATEGORIES = ["病院", "自然食品店", "飲食店", "美容院", "ホテル・宿泊施設", "その他"];
+const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s => s.category).filter(Boolean)])];
   const filteredShops = shopFilter === "全て" ? shops : shops.filter(s => s.category === shopFilter);
   const allTags = ["全て", ...new Set(AFFILIATES.map(p => p.tag))];
   const filteredAff = affTag === "全て" ? AFFILIATES : AFFILIATES.filter(p => p.tag === affTag);
@@ -872,7 +873,7 @@ export default function App() {
                   {[
                     { label: "お店の名前", required: true, example: "例：ナチュラルカフェ 緑の庭" },
                     { label: "エリア（都道府県・市区町村）", required: true, example: "例：東京都渋谷区" },
-                    { label: "カテゴリ", required: true, example: "カフェ・スーパー・病院・薬局・美容院など" },
+                    { label: "カテゴリ", required: true, example: "病院・自然食品店・飲食店・美容院・ホテル・宿泊施設・その他" },
                     { label: "安全と判断した理由", required: true, example: "例：芳香剤なし、無添加メニューあり、スタッフが配慮してくれる" },
                     { label: "訪問日（おおよそ）", required: false, example: "例：2026年5月" },
                     { label: "住所", required: false, example: "例：渋谷区神南1-2-3（地図ピン用）" },
@@ -1104,10 +1105,22 @@ export default function App() {
               </div>
             </a>
 
+            {/* お問い合わせ */}
+            <a href="https://forms.gle/E8RDjcDJVDiuzW4b9" target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 14, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 12, textDecoration: "none" }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: C.accentDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <MessageCircle size={18} color={C.accent} strokeWidth={1.5} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary, marginBottom: 2 }}>ご質問・ご意見はこちら</div>
+                <div style={{ fontSize: 11, color: C.textSecondary }}>フォームからお気軽にどうぞ</div>
+              </div>
+              <ExternalLink size={14} color={C.textMuted} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+            </a>
+
             <Card style={{ marginBottom: 0 }}>
               <SLabel>アプリについて</SLabel>
               <div style={{ fontSize: 12, color: C.textSecondary, lineHeight: 2 }}>
-                <div>バージョン: 7.0.0（デモ）</div>
+                <div>バージョン: 1.0.0</div>
                 <div>データ: 端末内のみに保存</div>
               </div>
             </Card>
