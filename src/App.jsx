@@ -519,7 +519,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                 ))}
                 {posts.length > 5 && (
                   <button onClick={() => setShowAllPosts(v => !v)} style={{ width: "100%", marginTop: 12, background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px", fontSize: 12, color: C.textSecondary, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                    {showAllPosts ? "閉じる" : `すべて見る（${posts.length}件）`}
+                    {showAllPosts ? "閉じる" : "すべて見る"}
                     <ArrowRight size={12} color={C.textSecondary} strokeWidth={1.5} style={{ transform: showAllPosts ? "rotate(90deg)" : "none" }} />
                   </button>
                 )}
@@ -576,7 +576,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   </button>
                 ))}
               </div>
-              <AdSection isHome={0} />
+              <AdSection isHome={3} />
             </div>
           );
         })()}
@@ -953,7 +953,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
             )}
             {aiResult && aiResult.error && <Card><p style={{ textAlign: "center", color: C.danger, fontSize: 13, margin: 0 }}>エラーが発生しました。再度お試しください。</p></Card>}
-            <AdSection isHome={3} />
+            <AdSection isHome={0} />
           </div>
         )}
 
