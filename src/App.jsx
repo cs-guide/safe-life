@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
 import {
   Home, BookOpen, BarChart2, Sparkles, MapPin, ScanLine, Settings,
@@ -86,7 +86,13 @@ const MCS_TIPS = [
   { title: "安全な場所を記録しておこう", body: "「ここなら大丈夫」という場所をリストにしておくと、外出時の安心感につながります。マップ機能を活用してみましょう。" },
 ];
 
-const POSTS = [
+// ★ 投稿管理スプレッドシートID（安全マップと別シートでもOK）
+// シート名「posts」、列順: タイプ(note/threads)・タイトル・日付・URL
+const POSTS_SHEET_ID = "your-spreadsheet-id-here";
+const POSTS_SHEET_URL = `https://docs.google.com/spreadsheets/d/${POSTS_SHEET_ID}/gviz/tq?tqx=out:json&sheet=posts`;
+
+// ★ フォールバック（スプレッドシート未設定時）
+const POSTS_FALLBACK = [
   { type: "note", Icon: FileText, title: "化学物質過敏症と診断されたら最初にすること", date: "2026-05-22", url: "https://note.com" },
   { type: "note", Icon: FileText, title: "無添加洗剤おすすめ5選【2026年版】", date: "2026-05-18", url: "https://note.com" },
   { type: "threads", Icon: MessageCircle, title: "今日から柔軟剤をやめてみた話。3日目の変化が...", date: "2026-05-24", url: "https://www.threads.net" },
@@ -148,6 +154,31 @@ function AffCard({ p }) {
 
 const ttStyle = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.textPrimary };
 
+function RakutenWidget() {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    ref.current.innerHTML = "";
+    window.rakuten_design = "slide";
+    window.rakuten_affiliateId = "0f720b8c.0ab39c44.0f720b8d.56ca2f62";
+    window.rakuten_items = "ctsmatch";
+    window.rakuten_genreId = "0";
+    window.rakuten_size = "468x160";
+    window.rakuten_target = "_blank";
+    window.rakuten_theme = "gray";
+    window.rakuten_border = "off";
+    window.rakuten_auto_mode = "on";
+    window.rakuten_genre_title = "off";
+    window.rakuten_recommend = "on";
+    window.rakuten_ts = String(Date.now());
+    const s = document.createElement("script");
+    s.src = "https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106";
+    s.async = true;
+    ref.current.appendChild(s);
+  }, []);
+  return <div ref={ref} style={{ width: "100%", maxWidth: 430, overflow: "hidden" }} />;
+}
+
 // ── App ────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState(0);
@@ -174,6 +205,25 @@ export default function App() {
   const [shops, setShops] = useState(SHOPS_FALLBACK);
   const [shopsLoading, setShopsLoading] = useState(false);
   const [shopsFromSheet, setShopsFromSheet] = useState(false);
+  const [posts, setPosts] = useState(POSTS_FALLBACK);
+
+  // 投稿をスプレッドシートから取得
+  const fetchPosts = async () => {
+    if (POSTS_SHEET_ID === "your-spreadsheet-id-here") return;
+    try {
+      const res = await fetch(POSTS_SHEET_URL);
+      const text = await res.text();
+      const json = JSON.parse(text.replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "").replace(");", ""));
+      const parsed = json.table.rows.map((row, i) => ({
+        type: row.c[0]?.v || "note",
+        Icon: (row.c[0]?.v || "note") === "note" ? FileText : MessageCircle,
+        title: row.c[1]?.v || "",
+        date: row.c[2]?.v || "",
+        url: row.c[3]?.v || "",
+      })).filter(r => r.title);
+      if (parsed.length > 0) setPosts(parsed);
+    } catch(e) { console.error("投稿シート読み込みエラー:", e); }
+  };
 
   // スプレッドシートからお店データを取得
   const fetchShops = async () => {
@@ -196,7 +246,7 @@ export default function App() {
     setShopsLoading(false);
   };
 
-  useState(() => { fetchShops(); }, []);
+  useState(() => { fetchShops(); fetchPosts(); }, []);
   const [toast, setToast] = useState(null);
   const [aiResult, setAiResult] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -301,7 +351,7 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
   const VISIBLE_NAV = [0, 1, 2, 4, 5, 6]; // 3（分析）を非表示
 
   return (
-    <div style={{ fontFamily: "Noto Sans JP, sans-serif", color: C.textPrimary }}><style>{`* { box-sizing: border-box; } body { margin: 0; background: #eef3ee; } .app-inner { max-width: 430px; margin: 0 auto; min-height: 100vh; padding-bottom: 88px; background: #f5f8f5; } @media (min-width: 768px) { .app-inner { box-shadow: 0 0 60px rgba(0,0,0,0.10); } }`}</style>
+    <div style={{ fontFamily: "Noto Sans JP, sans-serif", color: C.textPrimary }}><style>{`* { box-sizing: border-box; } body { margin: 0; background: #eef3ee; } .app-inner { max-width: 430px; margin: 0 auto; min-height: 100vh; padding-bottom: 220px; background: #f5f8f5; } @media (min-width: 768px) { .app-inner { box-shadow: 0 0 60px rgba(0,0,0,0.10); } }`}</style>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
       <div className="app-inner">
 
@@ -374,7 +424,9 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
         {tab === 0 && (() => {
           const todayIdx = new Date().getDate() % MCS_TIPS.length;
           const tip = MCS_TIPS[todayIdx];
-          const todayProduct = AFFILIATES[new Date().getDate() % AFFILIATES.length];
+          // ランダムに1製品選択（日付+時間帯でシード）
+          const seed = new Date().getDate() + new Date().getHours();
+          const todayProduct = AFFILIATES[seed % AFFILIATES.length];
           return (
             <div>
               {/* 今日の豆知識 */}
@@ -393,8 +445,8 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                   <BookOpen size={14} color={C.textSecondary} strokeWidth={1.5} />
                   <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textMuted, fontWeight: 600 }}>最新の投稿</span>
                 </div>
-                {POSTS.map((post, i) => (
-                  <a key={i} href={post.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none", paddingBottom: i < POSTS.length - 1 ? 12 : 0, marginBottom: i < POSTS.length - 1 ? 12 : 0, borderBottom: i < POSTS.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                {posts.map((post, i) => (
+                  <a key={i} href={post.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", gap: 12, alignItems: "center", textDecoration: "none", paddingBottom: i < posts.length - 1 ? 12 : 0, marginBottom: i < posts.length - 1 ? 12 : 0, borderBottom: i < posts.length - 1 ? `1px solid ${C.border}` : "none" }}>
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: post.type === "note" ? "#e6faf7" : "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <post.Icon size={16} color={post.type === "note" ? "#41c9b4" : "#555"} strokeWidth={1.5} />
                     </div>
@@ -1125,6 +1177,22 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
               </div>
             </Card>
           </div>
+        )}
+      </div>
+
+      {/* 広告エリア：タブによって切り替え */}
+      <div style={{ position: "fixed", bottom: 56, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(255,255,255,0.97)", borderTop: `1px solid ${C.border}`, padding: "8px 0", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 90, minHeight: 60, overflow: "hidden" }}>
+        {tab === 0 ? (
+          /* ホームはa8広告 */
+          <div style={{ textAlign: "center" }}>
+            <a href="https://px.a8.net/svt/ejp?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" rel="nofollow" target="_blank">
+              <img alt="" src="https://www20.a8.net/svt/bgt?aid=230711610041&wid=005&eno=01&mid=s00000014332001005000&mc=1" style={{ display: "block", width: 300, height: 250 }} />
+            </a>
+            <img width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=3TCY7U+OEVO2+32L4+5ZEMP" alt="" />
+          </div>
+        ) : (
+          /* 他タブは楽天ウィジェット */
+          <RakutenWidget />
         )}
       </div>
 
