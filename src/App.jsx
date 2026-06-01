@@ -203,30 +203,50 @@ function AdSection({ isHome }) {
   );
 }
 
-// ── カメラバーコードスキャナー（Safari/Chrome/Edge 対応）────────
+// ── カメラバーコードスキャナー（BarcodeDetector優先 + ZXing fallback）────────
 function CameraScanner({ onScan, C, btnSt }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [active, setActive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [hint, setHint] = useState("");
   const timerRef = useRef(null);
   const streamRef = useRef(null);
+  const detectorRef = useRef(null);
+  const zxingRef = useRef(null);
 
   const stop = () => {
     clearInterval(timerRef.current);
+    timerRef.current = null;
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     setActive(false);
+    setHint("");
   };
 
   const loadZXing = () => new Promise((resolve, reject) => {
-    if (window.ZXing) { resolve(); return; }
+    if (window.ZXing) { resolve(window.ZXing); return; }
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
-    s.onload = resolve;
+    s.onload = () => resolve(window.ZXing);
     s.onerror = reject;
     document.head.appendChild(s);
   });
+
+  const buildZXingReader = (ZXing) => {
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+    ]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    const reader = new ZXing.MultiFormatReader();
+    reader.setHints(hints);
+    return reader;
+  };
 
   const start = async () => {
     setError(null);
@@ -237,40 +257,66 @@ function CameraScanner({ onScan, C, btnSt }) {
       return;
     }
     try {
-      await loadZXing();
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      // 高解像度でカメラ起動（バーコード読み取り精度向上）
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          focusMode: "continuous",
+        }
+      });
       streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
 
-      const hints = new Map();
-      hints.set(window.ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-        window.ZXing.BarcodeFormat.EAN_13,
-        window.ZXing.BarcodeFormat.EAN_8,
-        window.ZXing.BarcodeFormat.CODE_128,
-        window.ZXing.BarcodeFormat.UPC_A,
-        window.ZXing.BarcodeFormat.UPC_E,
-      ]);
-      const reader = new window.ZXing.MultiFormatReader();
-      reader.setHints(hints);
+      // BarcodeDetector が使えるか確認（Chrome / Android）
+      const useBarcodeDetector = "BarcodeDetector" in window;
+      if (useBarcodeDetector) {
+        detectorRef.current = new window.BarcodeDetector({
+          formats: ["ean_13", "ean_8", "code_128", "upc_a", "upc_e", "qr_code"],
+        });
+        setHint("Chrome対応モードで読み取り中");
+      } else {
+        // ZXing（Safari対応）
+        const ZXing = await loadZXing();
+        zxingRef.current = buildZXingReader(ZXing);
+        setHint("Safariモードで読み取り中");
+      }
 
       setActive(true);
       setLoading(false);
 
-      timerRef.current = setInterval(() => {
-        if (!videoRef.current || !canvasRef.current || !streamRef.current) return;
+      timerRef.current = setInterval(async () => {
+        if (!videoRef.current || !streamRef.current) return;
         const v = videoRef.current;
-        const c = canvasRef.current;
-        c.width = v.videoWidth;
-        c.height = v.videoHeight;
-        if (!c.width) return;
-        c.getContext("2d").drawImage(v, 0, 0);
+        if (!v.videoWidth) return;
+
         try {
-          const lum = new window.ZXing.HTMLCanvasElementLuminanceSource(c);
-          const bmp = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(lum));
-          const result = reader.decode(bmp);
-          if (result) { stop(); onScan(result.getText()); }
+          if (detectorRef.current) {
+            // BarcodeDetector（高精度）
+            const results = await detectorRef.current.detect(v);
+            if (results.length > 0) {
+              stop();
+              onScan(results[0].rawValue);
+            }
+          } else if (zxingRef.current && canvasRef.current) {
+            // ZXing（Safari fallback）
+            const c = canvasRef.current;
+            c.width = v.videoWidth;
+            c.height = v.videoHeight;
+            c.getContext("2d").drawImage(v, 0, 0);
+            const ZXing = window.ZXing;
+            const lum = new ZXing.HTMLCanvasElementLuminanceSource(c);
+            const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+            const result = zxingRef.current.decode(bmp);
+            if (result) { stop(); onScan(result.getText()); }
+          }
         } catch (_) {}
-      }, 250);
+      }, 150);
+
     } catch (e) {
       setError("カメラへのアクセスが許可されていません");
       setLoading(false);
@@ -288,21 +334,32 @@ function CameraScanner({ onScan, C, btnSt }) {
         {!active && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10 }}>
             <ScanLine size={36} color="rgba(255,255,255,0.4)" />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{loading ? "準備中..." : "カメラを起動してスキャン"}</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{loading ? "カメラ起動中..." : "カメラを起動してスキャン"}</span>
           </div>
         )}
         {active && (
           <>
-            <div style={{ position: "absolute", top: "20%", left: "10%", right: "10%", bottom: "20%", border: "2px solid #41c9b4", borderRadius: 8 }} />
-            <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, textAlign: "center" }}>
-              <span style={{ fontSize: 11, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "4px 12px", borderRadius: 20 }}>バーコードを枠内に合わせてください</span>
+            {/* スキャン枠：横長バーコード向けに横長に */}
+            <div style={{ position: "absolute", top: "30%", left: "5%", right: "5%", bottom: "30%", border: "2px solid #41c9b4", borderRadius: 6 }}>
+              {/* 四隅の強調 */}
+              {[["0%","0%"],["0%","auto"],["auto","0%"],["auto","auto"]].map(([t,b],i) => (
+                <div key={i} style={{ position: "absolute", top: t!=="auto"?-2:undefined, bottom: b!=="auto"?-2:undefined, left: i%2===0?-2:undefined, right: i%2===1?-2:undefined, width: 16, height: 16, borderColor: "#41c9b4", borderStyle: "solid", borderWidth: 0, [i<2?"borderTop":"borderBottom"]: "3px solid #41c9b4", [i%2===0?"borderLeft":"borderRight"]: "3px solid #41c9b4" }} />
+              ))}
             </div>
+            <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, textAlign: "center" }}>
+              <span style={{ fontSize: 11, color: "#fff", background: "rgba(0,0,0,0.55)", padding: "4px 14px", borderRadius: 20 }}>バーコードを枠内に合わせてください</span>
+            </div>
+            {hint && (
+              <div style={{ position: "absolute", top: 10, right: 10 }}>
+                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", background: "rgba(0,0,0,0.4)", padding: "2px 8px", borderRadius: 10 }}>{hint}</span>
+              </div>
+            )}
           </>
         )}
       </div>
       {error && <p style={{ fontSize: 12, color: "#c94f4f", textAlign: "center", margin: "0 0 12px", lineHeight: 1.6 }}>{error}</p>}
       <button onClick={active ? stop : start} disabled={loading} style={{ ...btnSt, background: active ? "#c94f4f" : btnSt.background, opacity: loading ? 0.6 : 1 }}>
-        {loading ? "準備中..." : active ? "スキャン停止" : "カメラを起動してスキャン"}
+        {loading ? "カメラ起動中..." : active ? "スキャン停止" : "カメラを起動してスキャン"}
       </button>
     </div>
   );
