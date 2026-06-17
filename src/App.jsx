@@ -17,7 +17,7 @@ const SHOP_FORM_URL = "https://forms.gle/a4Bsw23kmZkUBnuX6";
 // ★ スプレッドシートのIDをここに入れてください
 // 手順: スプレッドシートURL https://docs.google.com/spreadsheets/d/【ここ】/edit の【ここ】の部分
 // シート名は「shops」、列順: 名前・エリア・カテゴリ・コメント
-const SHEET_ID = "your-spreadsheet-id-here";
+const SHEET_ID = "12tadu4aWjP5UazDz__RNQoQaQwypyuM44AruvdLshMc";
 const SHEET_NAME = "shops";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
 
@@ -424,11 +424,14 @@ export default function App() {
       const rows = json.table.rows;
       const parsed = rows.map((row, i) => ({
         id: i + 1,
-        name: row.c[0]?.v || "",
+        no: row.c[0]?.v || "",
         area: row.c[1]?.v || "",
-        category: row.c[2]?.v || "",
-        notes: row.c[3]?.v || "",
-      })).filter(r => r.name);
+        name: row.c[2]?.v || "",
+        address: row.c[3]?.v || "",
+        category: row.c[4]?.v || "",
+        url: row.c[5]?.v || "",
+        notes: row.c[6]?.v || "",
+      })).filter(r => r.name && r.name !== "店名");
       if (parsed.length > 0) { setShops(parsed); setShopsFromSheet(true); }
     } catch (e) { console.error("シート読み込みエラー:", e); }
     setShopsLoading(false);
@@ -1284,10 +1287,19 @@ const shopCategories = ["全て", ...new Set([...SHOP_CATEGORIES, ...shops.map(s
                       </div>
                       <button onClick={() => setSelectedShop(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={16} color={C.textMuted} /></button>
                     </div>
-                    <div style={{ marginTop: 10, fontSize: 12, color: C.accent, display: "flex", alignItems: "center", gap: 6 }}>
-                      <Check size={13} color={C.accent} />
-                      {selectedShop.notes}
-                    </div>
+                    {selectedShop.address && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: C.textSecondary }}>📍 {selectedShop.address}</div>
+                    )}
+                    {selectedShop.notes && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: C.accent, display: "flex", alignItems: "flex-start", gap: 6 }}>
+                        <Check size={13} color={C.accent} style={{ marginTop: 2, flexShrink: 0 }} />
+                        <span>{selectedShop.notes}</span>
+                      </div>
+                    )}
+                    {selectedShop.url && (
+                      <a href={selectedShop.url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, fontSize: 11, color: C.accent, textDecoration: "none" }}>
+                        <ExternalLink size={11} color={C.accent} />サイトを見る
+                      </a>
                   </div>
                 )}
 
